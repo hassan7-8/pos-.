@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional POS System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        .receipt-paper {
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .scan-animation {
+            animation: scanLine 2s infinite;
+        }
+        
+        @keyframes scanLine {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+        
+        .status-online { 
+            animation: pulse 2s infinite;
+            background-color: #10b981;
+        }
+        
+        .cash-drawer {
+            transition: all 0.3s ease;
+        }
+        
+        .cash-drawer.open {
+            transform: translateX(10px);
+            box-shadow: -5px 0 15px rgba(0,0,0,0.2);
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body * { visibility: hidden; }
+            .receipt-print, .receipt-print * { visibility: visible; }
+            .receipt-print { position: absolute; top: 0; left: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div class="bg-gray-800 px-6 py-2 flex justify-between items-center text-sm">
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+                <div class="w-2 h-2 rounded-full status-online"></div>
+                <span>System Online</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span>🔒</span>
+                <span>PCI Compliant</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span>💾</span>
+                <span id="dbStatus">Database Ready</span>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span id="currentTime"></span>
+            <span id="storeNumber">Store #001</span>
+            <button onclick="showSettings()" class="text-blue-400 hover:text-blue-300">Settings</button>
+            <button onclick="logout()" class="text-red-400 hover:text-red-300">Logout</button>
+        </div>
+    </div>
+
+    <div class="flex h-screen">
+        <div class="w-2/3 p-6 space-y-6">
+            <div class="bg-gray-800 rounded-lg p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold flex items-center">
+                        <span class="mr-2">📦</span>
+                        Inventory Management
+                    </h2>
+                    <button onclick="showInventoryModal()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm">
+                        Manage Items
+                    </button>
+                </div>
+                
+                <div class="bg-gray-700 p-4 rounded-lg">
+                    <h3 class="text-lg font-medium mb-3">Add Item to Cart</h3>
+                    <div class="flex space-x-4">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium mb-2">Item Number</label>
+                            <input 
+                                type="text" 
+                                id="itemNumber" 
+                                placeholder="Enter item number..."
+                                class="w-full bg-gray-600 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                                onkeypress="handleItemNumberInput(event)"
+                            >
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="addItemByNumber()" class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-medium">
+                                Add to Cart
+                            </button>
+                        </div>
+                    </div>
+                    <div id="itemPreview" class="mt-3 text-sm text-gray-400 hidden">
+                        </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 rounded-lg p-6 flex-1">
+                <h2 class="text-xl font-semibold mb-4 flex items-center justify-between">
+                    <span class="flex items-center">
+                        <span class="mr-2">🛒</span>
+                        Current Transaction
+                    </span>
+                    <button onclick="clearCart()" class="text-red-400 hover:text-red-300 text-sm">Clear All</button>
+                </h2>
+                <div id="cartItems" class="space-y-3 max-h-96 overflow-y-auto">
+                    <div class="text-gray-400 text-center py-8">No items in cart</div>
+                </div>
+                <div class="mt-6 pt-4 border-t border-gray-700">
+                    <div class="flex justify-between text-lg">
+                        <span>Subtotal:</span>
+                        <span id="subtotal">$0.00</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-400">
+                        <span>Tax (<span id="taxRate">8.5</span>%):</span>
+                        <span id="tax">$0.00</span>
+                    </div>
+                    <div class="flex justify-between text-xl font-bold mt-2 pt-2 border-t border-gray-600">
+                        <span>Total:</span>
+                        <span id="total">$0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-1/3 bg-gray-800 p-6 space-y-6">
+            <div class="bg-gray-700 rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4">💳 Payment Processing</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="showPaymentModal('cash')" class="bg-green-600 hover:bg-green-700 p-4 rounded-lg text-center">
+                        <div class="text-2xl mb-1">💵</div>
+                        <div class="text-sm">Cash</div>
+                    </button>
+                    <button onclick="showPaymentModal('card')" class="bg-blue-600 hover:bg-blue-700 p-4 rounded-lg text-center">
+                        <div class="text-2xl mb-1">💳</div>
+                        <div class="text-sm">Card</div>
+                    </button>
+                    <button onclick="showPaymentModal('mobile')" class="bg-purple-600 hover:bg-purple-700 p-4 rounded-lg text-center">
+                        <div class="text-2xl mb-1">📱</div>
+                        <div class="text-sm">Mobile Pay</div>
+                    </button>
+                    <button onclick="showPaymentModal('qr')" class="bg-orange-600 hover:bg-orange-700 p-4 rounded-lg text-center">
+                        <div class="text-2xl mb-1">🔲</div>
+                        <div class="text-sm">QR Code</div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-gray-700 rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4">🔧 Hardware Control</h3>
+                <button onclick="openCashDrawer()" class="w-full bg-yellow-600 hover:bg-yellow-700 p-3 rounded-lg flex items-center justify-center">
+                    <span class="mr-2">💰</span>
+                    Open Cash Drawer
+                </button>
+            </div>
+
+            <div class="bg-gray-700 rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4">📊 System Status</h3>
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span>Database:</span>
+                        <span class="text-green-400">Connected</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Payment Gateway:</span>
+                        <span class="text-green-400">Online</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Last Sync:</span>
+                        <span class="text-blue-400" id="syncStatus">Just now</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Transactions Today:</span>
+                        <span id="dailyTransactions">0</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Revenue Today:</span>
+                        <span id="dailyRevenue">$0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="paymentModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-96">
+            <h3 class="text-xl font-semibold mb-6" id="paymentTitle">Process Payment</h3>
+            
+            <div id="cashPayment" class="hidden">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Amount Received ($)</label>
+                    <input type="number" id="cashReceived" step="0.01" min="0" 
+                           class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                </div>
+                <div class="mb-4">
+                    <div class="flex justify-between text-lg">
+                        <span>Total Due:</span>
+                        <span id="cashTotal">$0.00</span>
+                    </div>
+                    <div class="flex justify-between text-lg font-bold text-green-400">
+                        <span>Change:</span>
+                        <span id="changeAmount">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="cardPayment" class="hidden">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Card Number</label>
+                        <input type="text" id="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19"
+                               class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Expiry</label>
+                            <input type="text" id="cardExpiry" placeholder="MM/YY" maxlength="5"
+                                   class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">CVV</label>
+                            <input type="text" id="cardCvv" placeholder="123" maxlength="4"
+                                   class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="mobilePayment" class="hidden">
+                <div class="text-center py-8">
+                    <div class="text-6xl mb-4">📱</div>
+                    <p class="text-lg mb-2">Hold device near reader</p>
+                    <p class="text-sm text-gray-400">Apple Pay, Google Pay, Samsung Pay</p>
+                    <div class="mt-4 animate-pulse">
+                        <div class="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center">
+                            <span class="text-2xl">📡</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="qrPayment" class="hidden">
+                <div class="text-center py-8">
+                    <div class="text-6xl mb-4">🔲</div>
+                    <p class="text-lg mb-2">Scan QR Code to Pay</p>
+                    <div class="w-32 h-32 bg-white mx-auto rounded-lg flex items-center justify-center mb-4">
+                        <div class="text-black text-xs">QR CODE</div>
+                    </div>
+                    <p class="text-sm text-gray-400">Customer scans with their banking app</p>
+                </div>
+            </div>
+
+            <div class="flex space-x-4 mt-6">
+                <button onclick="processPayment()" class="flex-1 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-medium">
+                    Process Payment
+                </button>
+                <button onclick="closePaymentModal()" class="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="receiptModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="receipt-paper w-96 p-6 rounded-lg receipt-print">
+            <div class="text-center text-black mb-4">
+                <h2 class="text-xl font-bold" id="receiptStoreName">STORE NAME</h2>
+                <p class="text-sm" id="receiptAddress">Store Address</p>
+                <p class="text-sm" id="receiptCity">City, State ZIP</p>
+                <p class="text-sm" id="receiptPhone">Phone Number</p>
+            </div>
+            <div class="border-t border-b border-gray-400 py-4 text-black">
+                <div id="receiptItems"></div>
+                <div class="mt-4 pt-2 border-t border-gray-300">
+                    <div class="flex justify-between">
+                        <span>Subtotal:</span>
+                        <span id="receiptSubtotal">$0.00</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Tax:</span>
+                        <span id="receiptTax">$0.00</span>
+                    </div>
+                    <div class="flex justify-between font-bold text-lg">
+                        <span>Total:</span>
+                        <span id="receiptTotal">$0.00</span>
+                    </div>
+                    <div class="flex justify-between mt-2">
+                        <span>Payment Method:</span>
+                        <span id="receiptPaymentMethod">Cash</span>
+                    </div>
+                    <div id="receiptChange" class="flex justify-between hidden">
+                        <span>Change Given:</span>
+                        <span id="receiptChangeAmount">$0.00</span>
+                    </div>
+                </div>
+            </div>
+            <div class="text-center text-black mt-4 text-sm">
+                <p>Transaction ID: <span id="transactionId"></span></p>
+                <p id="receiptTimestamp"></p>
+                <p class="mt-2">Thank you for your business!</p>
+            </div>
+            <div class="flex space-x-2 mt-6 no-print">
+                <button onclick="printReceipt()" class="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Print</button>
+                <button onclick="downloadReceiptImage()" class="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700">Download</button>
+                <button onclick="closeReceipt()" class="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="inventoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-4/5 max-w-4xl max-h-5/6 overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold">Inventory Management</h3>
+                <button onclick="closeInventoryModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            
+            <div class="bg-gray-700 p-6 rounded-lg mb-6">
+                <h4 class="text-lg font-medium mb-4">Add New Item</h4>
+                <div class="grid grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Item Number</label>
+                        <input type="text" id="newItemNumber" 
+                               class="w-full bg-gray-600 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Item Name</label>
+                        <input type="text" id="newItemName" 
+                               class="w-full bg-gray-600 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Price ($)</label>
+                        <input type="number" id="newItemPrice" step="0.01" min="0"
+                               class="w-full bg-gray-600 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="addNewItem()" class="w-full bg-green-600 hover:bg-green-700 py-3 rounded-lg font-medium">
+                            Add Item
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-700 p-6 rounded-lg">
+                <h4 class="text-lg font-medium mb-4">Current Items</h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-600">
+                                <th class="text-left py-2">Item #</th>
+                                <th class="text-left py-2">Name</th>
+                                <th class="text-left py-2">Price</th>
+                                <th class="text-left py-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-96 max-h-96 overflow-y-auto">
+            <h3 class="text-xl font-semibold mb-6">Store Settings</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Store Name</label>
+                    <input type="text" id="settingsStoreName" 
+                           class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Address</label>
+                    <input type="text" id="settingsAddress" 
+                           class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">City, State ZIP</label>
+                    <input type="text" id="settingsCity" 
+                           class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Phone Number</label>
+                    <input type="text" id="settingsPhone" 
+                           class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Tax Rate (%)</label>
+                    <input type="number" id="settingsTaxRate" step="0.1" min="0" max="50"
+                           class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="flex space-x-4 mt-6">
+                <button onclick="saveSettings()" class="flex-1 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-medium">
+                    Save Settings
+                </button>
+                <button onclick="closeSettings()" class="flex-1 bg-gray-600 hover:bg-gray-700 py-3 rounded-lg font-medium">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cashDrawer" class="fixed bottom-4 right-4 w-16 h-12 bg-yellow-600 rounded cash-drawer hidden">
+        <div class="w-full h-full bg-yellow-700 rounded flex items-center justify-center">
+            💰
+        </div>
+    </div>
+
+    <script>
+        // System State
+        let currentCart = [];
+        let transactionCounter = parseInt(localStorage.getItem('transactionCounter') || '1000');
+        let dailyStats = JSON.parse(localStorage.getItem('dailyStats') || '{"transactions": 0, "revenue": 0}');
+        let currentPaymentMethod = '';
+        let storeSettings = JSON.parse(localStorage.getItem('storeSettings') || `{
+            "storeName": "My Store",
+            "address": "123 Main Street",
+            "city": "City, State 12345",
+            "phone": "(555) 123-4567",
+            "taxRate": 8.5
+        }`);
+        let inventory = JSON.parse(localStorage.getItem('inventory') || '{}');
+
+        // Initialize system
+        function initializeSystem() {
+            updateTime();
+            setInterval(updateTime, 1000);
+            loadDailyStats();
+            updateTaxRate();
+            
+            // Auto-save every 30 seconds
+            setInterval(saveSystemState, 30000);
+            
+            // Focus on item number input
+            document.getElementById('itemNumber').focus();
+        }
+
+        function updateTime() {
+            document.getElementById('currentTime').textContent = new Date().toLocaleTimeString();
+        }
+
+        function loadDailyStats() {
+            document.getElementById('dailyTransactions').textContent = dailyStats.transactions;
+            document.getElementById('dailyRevenue').textContent = `$${dailyStats.revenue.toFixed(2)}`;
+        }
+
+        function updateTaxRate() {
+            document.getElementById('taxRate').textContent = storeSettings.taxRate;
+        }
+
+        function saveSystemState() {
+            localStorage.setItem('transactionCounter', transactionCounter.toString());
+            localStorage.setItem('dailyStats', JSON.stringify(dailyStats));
+            localStorage.setItem('storeSettings', JSON.stringify(storeSettings));
+            localStorage.setItem('inventory', JSON.stringify(inventory));
+            document.getElementById('syncStatus').textContent = 'Saved ' + new Date().toLocaleTimeString();
+        }
+
+        // Inventory Management
+        function showInventoryModal() {
+            updateInventoryTable();
+            document.getElementById('inventoryModal').classList.remove('hidden');
+            document.getElementById('inventoryModal').classList.add('flex');
+        }
+
+        function closeInventoryModal() {
+            document.getElementById('inventoryModal').classList.add('hidden');
+            document.getElementById('inventoryModal').classList.remove('flex');
+        }
+
+        function addNewItem() {
+            const itemNumber = document.getElementById('newItemNumber').value.trim();
+            const itemName = document.getElementById('newItemName').value.trim();
+            const itemPrice = parseFloat(document.getElementById('newItemPrice').value);
+            
+            if (!itemNumber || !itemName || !itemPrice || itemPrice <= 0) {
+                showNotification('❌ Please fill all fields with valid data', 'error');
+                return;
+            }
+            
+            if (inventory[itemNumber]) {
+                showNotification('❌ Item number already exists', 'error');
+                return;
+            }
+            
+            inventory[itemNumber] = {
+                number: itemNumber,
+                name: itemName,
+                price: itemPrice
+            };
+            
+            saveInventory();
+            updateInventoryTable();
+            clearNewItemForm();
+            showNotification('✅ Item added to inventory', 'success');
+        }
+
+        function clearNewItemForm() {
+            document.getElementById('newItemNumber').value = '';
+            document.getElementById('newItemName').value = '';
+            document.getElementById('newItemPrice').value = '';
+            document.getElementById('newItemNumber').focus();
+        }
+
+        function updateInventoryTable() {
+            const tbody = document.getElementById('inventoryTableBody');
+            tbody.innerHTML = '';
+            
+            if (Object.keys(inventory).length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-400">No items in inventory</td></tr>';
+                return;
+            }
+            
+            Object.values(inventory).forEach(item => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-600';
+                row.innerHTML = `
+                    <td class="py-2">${item.number}</td>
+                    <td class="py-2">${item.name}</td>
+                    <td class="py-2">$${item.price.toFixed(2)}</td>
+                    <td class="py-2">
+                        <button onclick="deleteItem('${item.number}')" class="text-red-400 hover:text-red-300 text-sm">
+                            Delete
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function deleteItem(itemNumber) {
+            if (confirm(`Are you sure you want to delete item ${itemNumber}?`)) {
+                delete inventory[itemNumber];
+                saveInventory();
+                updateInventoryTable();
+                showNotification('🗑️ Item deleted', 'info');
+            }
+        }
+
+        function saveInventory() {
+            localStorage.setItem('inventory', JSON.stringify(inventory));
+        }
+
+        // Cart Management
+        function handleItemNumberInput(event) {
+            if (event.key === 'Enter') {
+                addItemByNumber();
+            } else {
+                // Show item preview as user types
+                const itemNumber = event.target.value.trim();
+                if (itemNumber && inventory[itemNumber]) {
+                    showItemPreview(inventory[itemNumber]);
+                } else {
+                    hideItemPreview();
+                }
+            }
+        }
+
+        function addItemByNumber() {
+            const itemNumber = document.getElementById('itemNumber').value.trim();
+            
+            if (!itemNumber) {
+                showNotification('❌ Please enter an item number', 'error');
+                return;
+            }
+            
+            const item = inventory[itemNumber];
+            if (!item) {
+                showNotification('❌ Item not found in inventory', 'error');
+                return;
+            }
+            
+            const existingItem = currentCart.find(cartItem => cartItem.number === itemNumber);
+            if (existingItem) {
+                existingItem.quantity += 1;
+            } else {
+                currentCart.push({
+                    id: Date.now(),
+                    number: item.number,
+                    name: item.name,
+                    price: item.price,
+                    quantity: 1
+                });
+            }
+            
+            updateCartDisplay();
+            updateTotals();
+            document.getElementById('itemNumber').value = '';
+            hideItemPreview();
+            showNotification('✅ Item added to cart', 'success');
+            document.getElementById('itemNumber').focus();
+        }
+
+        function showItemPreview(item) {
+            const preview = document.getElementById('itemPreview');
+            preview.innerHTML = `📦 ${item.name} - $${item.price.toFixed(2)}`;
+            preview.classList.remove('hidden');
+        }
+
+        function hideItemPreview() {
+            document.getElementById('itemPreview').classList.add('hidden');
+        }
+
+        function removeItemFromCart(index) {
+            currentCart.splice(index, 1);
+            updateCartDisplay();
+            updateTotals();
+            showNotification('🗑️ Item removed', 'info');
+        }
+
+        function updateCartDisplay() {
+            const cartContainer = document.getElementById('cartItems');
+            
+            if (currentCart.length === 0) {
+                cartContainer.innerHTML = '<div class="text-gray-400 text-center py-8">No items in cart</div>';
+                return;
+            }
+            
+            cartContainer.innerHTML = '';
+            currentCart.forEach((item, index) => {
+                const cartItem = document.createElement('div');
+                cartItem.className = 'bg-gray-700 p-4 rounded-lg flex justify-between items-center';
+                cartItem.innerHTML = `
+                    <div class="flex-1">
+                        <div class="font-medium">${item.name}</div>
+                        <div class="text-sm text-gray-400">#${item.number || 'N/A'} - $${item.price.toFixed(2)} × ${item.quantity}</div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="font-bold">$${(item.price * item.quantity).toFixed(2)}</span>
+                        <button onclick="removeItemFromCart(${index})" class="text-red-400 hover:text-red-300">
+                            ❌
+                        </button>
+                    </div>
+                `;
+                cartContainer.appendChild(cartItem);
+            });
+        }
+
+        function updateTotals() {
+            const subtotal = currentCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const tax = subtotal * (storeSettings.taxRate / 100);
+            const total = subtotal + tax;
+            
+            document.getElementById('subtotal').textContent = `$${subtotal.toFixed(2)}`;
+            document.getElementById('tax').textContent = `$${tax.toFixed(2)}`;
+            document.getElementById('total').textContent = `$${total.toFixed(2)}`;
+        }
+
+        function clearCart() {
+            if (currentCart.length === 0) return;
+            
+            if (confirm('Are you sure you want to clear all items?')) {
+                currentCart = [];
+                updateCartDisplay();
+                updateTotals();
+                showNotification('🗑️ Cart cleared', 'info');
+            }
+        }
+
+        // Payment Processing
+        function showPaymentModal(method) {
+            if (currentCart.length === 0) {
+                showNotification('❌ Cart is empty!', 'error');
+                return;
+            }
+            
+            currentPaymentMethod = method;
+            const modal = document.getElementById('paymentModal');
+            const title = document.getElementById('paymentTitle');
+            
+            // Hide all payment forms
+            document.getElementById('cashPayment').classList.add('hidden');
+            document.getElementById('cardPayment').classList.add('hidden');
+            document.getElementById('mobilePayment').classList.add('hidden');
+            document.getElementById('qrPayment').classList.add('hidden');
+            
+            // Show appropriate form
+            switch(method) {
+                case 'cash':
+                    title.textContent = '💵 Cash Payment';
+                    document.getElementById('cashPayment').classList.remove('hidden');
+                    document.getElementById('cashTotal').textContent = document.getElementById('total').textContent;
+                    document.getElementById('cashReceived').focus();
+                    break;
+                case 'card':
+                    title.textContent = '💳 Card Payment';
+                    document.getElementById('cardPayment').classList.remove('hidden');
+                    document.getElementById('cardNumber').focus();
+                    break;
+                case 'mobile':
+                    title.textContent = '📱 Mobile Payment';
+                    document.getElementById('mobilePayment').classList.remove('hidden');
+                    break;
+                case 'qr':
+                    title.textContent = '🔲 QR Code Payment';
+                    document.getElementById('qrPayment').classList.remove('hidden');
+                    break;
+            }
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').classList.add('hidden');
+            document.getElementById('paymentModal').classList.remove('flex');
+        }
+
+        function processPayment() {
+            const total = parseFloat(document.getElementById('total').textContent.replace('$', ''));
+            let isValid = false;
+            let changeAmount = 0;
+            
+            switch(currentPaymentMethod) {
+                case 'cash':
+                    const cashReceived = parseFloat(document.getElementById('cashReceived').value);
+                    if (!cashReceived || cashReceived < total) {
+                        showNotification('❌ Insufficient cash amount', 'error');
+                        return;
+                    }
+                    changeAmount = cashReceived - total;
+                    document.getElementById('changeAmount').textContent = `$${changeAmount.toFixed(2)}`;
+                    isValid = true;
+                    break;
+                    
+                case 'card':
+                    const cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
+                    const cardExpiry = document.getElementById('cardExpiry').value;
+                    const cardCvv = document.getElementById('cardCvv').value;
+                    
+                    if (!cardNumber || cardNumber.length < 13 || !cardExpiry || !cardCvv) {
+                        showNotification('❌ Please fill all card details', 'error');
+                        return;
+                    }
+                    isValid = true;
+                    break;
+                    
+                case 'mobile':
+                case 'qr':
+                    isValid = true;
+                    break;
+            }
+            
+            if (isValid) {
+                completeTransaction(changeAmount);
+            }
+        }
+
+        function completeTransaction(changeAmount = 0) {
+            const transactionId = `TXN${transactionCounter++}`;
+            const timestamp = new Date();
+            const total = parseFloat(document.getElementById('total').textContent.replace('$', ''));
+            
+            // Update daily stats
+            dailyStats.transactions += 1;
+            dailyStats.revenue += total;
+            loadDailyStats();
+            
+            // Show receipt
+            showReceipt(transactionId, timestamp, changeAmount);
+            
+            // Clear cart and close payment modal
+            currentCart = [];
+            updateCartDisplay();
+            updateTotals();
+            closePaymentModal();
+            
+            showNotification('✅ Payment processed successfully!', 'success');
+            saveSystemState();
+        }
+
+        // Receipt Management
+        function showReceipt(transactionId, timestamp, changeAmount = 0) {
+            const modal = document.getElementById('receiptModal');
+            
+            // Update store info
+            document.getElementById('receiptStoreName').textContent = storeSettings.storeName;
+            document.getElementById('receiptAddress').textContent = storeSettings.address;
+            document.getElementById('receiptCity').textContent = storeSettings.city;
+            document.getElementById('receiptPhone').textContent = storeSettings.phone;
+            
+            // Update items
+            const itemsContainer = document.getElementById('receiptItems');
+            itemsContainer.innerHTML = '';
+            currentCart.forEach(item => {
+                const receiptItem = document.createElement('div');
+                receiptItem.className = 'flex justify-between text-sm mb-1';
+                receiptItem.innerHTML = `
+                    <span>${item.name} (${item.quantity})</span>
+                    <span>$${(item.price * item.quantity).toFixed(2)}</span>
+                `;
+                itemsContainer.appendChild(receiptItem);
+            });
+            
+            // Update totals
+            document.getElementById('receiptSubtotal').textContent = document.getElementById('subtotal').textContent;
+            document.getElementById('receiptTax').textContent = document.getElementById('tax').textContent;
+            document.getElementById('receiptTotal').textContent = document.getElementById('total').textContent;
+            
+            // Update payment method
+            const paymentMethods = {
+                'cash': 'Cash',
+                'card': 'Credit/Debit Card',
+                'mobile': 'Mobile Payment',
+                'qr': 'QR Code'
+            };
+            document.getElementById('receiptPaymentMethod').textContent = paymentMethods[currentPaymentMethod];
+            
+            // Show change if cash payment
+            if (currentPaymentMethod === 'cash' && changeAmount > 0) {
+                document.getElementById('receiptChange').classList.remove('hidden');
+                document.getElementById('receiptChangeAmount').textContent = `$${changeAmount.toFixed(2)}`;
+            } else {
+                document.getElementById('receiptChange').classList.add('hidden');
+            }
+            
+            // Update transaction info
+            document.getElementById('transactionId').textContent = transactionId;
+            document.getElementById('receiptTimestamp').textContent = timestamp.toLocaleString();
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function printReceipt() {
+            window.print();
+            showNotification('🖨️ Receipt sent to printer', 'info');
+        }
+
+        function downloadReceiptImage() {
+            const receiptElement = document.querySelector('.receipt-print');
+            const transactionId = document.getElementById('transactionId').textContent;
+            const buttonContainer = receiptElement.querySelector('.no-print');
+
+            // Temporarily hide the button container
+            if (buttonContainer) {
+                buttonContainer.style.display = 'none';
+            }
+
+            html2canvas(receiptElement, {
+                scale: 3,
+                useCORS: true,
+                backgroundColor: null
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `receipt-${transactionId}.png`;
+                link.href = canvas.toDataURL('image/png');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showNotification('🧾 Receipt image downloaded', 'info');
+            }).catch(err => {
+                console.error('Error downloading receipt image:', err);
+                showNotification('❌ Could not download receipt', 'error');
+            }).finally(() => {
+                // Always show the button container again, even if an error occurs
+                if (buttonContainer) {
+                    buttonContainer.style.display = 'flex';
+                }
+            });
+        }
+
+        function closeReceipt() {
+            document.getElementById('receiptModal').classList.add('hidden');
+            document.getElementById('receiptModal').classList.remove('flex');
+        }
+
+        // Hardware Controls
+        function openCashDrawer() {
+            const drawer = document.getElementById('cashDrawer');
+            drawer.classList.remove('hidden');
+            drawer.classList.add('open');
+            showNotification('💰 Cash drawer opened', 'info');
+            
+            setTimeout(() => {
+                drawer.classList.remove('open');
+                setTimeout(() => drawer.classList.add('hidden'), 300);
+            }, 3000);
+        }
+
+        // Settings Management
+        function showSettings() {
+            document.getElementById('settingsStoreName').value = storeSettings.storeName;
+            document.getElementById('settingsAddress').value = storeSettings.address;
+            document.getElementById('settingsCity').value = storeSettings.city;
+            document.getElementById('settingsPhone').value = storeSettings.phone;
+            document.getElementById('settingsTaxRate').value = storeSettings.taxRate;
+            
+            document.getElementById('settingsModal').classList.remove('hidden');
+            document.getElementById('settingsModal').classList.add('flex');
+        }
+
+        function saveSettings() {
+            storeSettings.storeName = document.getElementById('settingsStoreName').value;
+            storeSettings.address = document.getElementById('settingsAddress').value;
+            storeSettings.city = document.getElementById('settingsCity').value;
+            storeSettings.phone = document.getElementById('settingsPhone').value;
+            storeSettings.taxRate = parseFloat(document.getElementById('settingsTaxRate').value);
+            
+            updateTaxRate();
+            updateTotals();
+            saveSystemState();
+            closeSettings();
+            showNotification('✅ Settings saved successfully', 'success');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.add('hidden');
+            document.getElementById('settingsModal').classList.remove('flex');
+        }
+
+        // System Functions
+        function logout() {
+            if (confirm('Are you sure you want to logout? Unsaved data will be lost.')) {
+                saveSystemState();
+                showNotification('👋 Logging out...', 'info');
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            }
+        }
+
+        // Notification System
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            const colors = {
+                'success': 'bg-green-600',
+                'error': 'bg-red-600',
+                'warning': 'bg-yellow-600',
+                'info': 'bg-blue-600'
+            };
+            
+            notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300`;
+            notification.textContent = message;
+            notification.style.transform = 'translateX(100%)';
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+            
+            setTimeout(() => {
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        // Input formatting
+        document.getElementById('cashReceived').addEventListener('input', function() {
+            const total = parseFloat(document.getElementById('total').textContent.replace('$', ''));
+            const received = parseFloat(this.value) || 0;
+            const change = Math.max(0, received - total);
+            document.getElementById('changeAmount').textContent = `$${change.toFixed(2)}`;
+        });
+
+        document.getElementById('cardNumber').addEventListener('input', function() {
+            let value = this.value.replace(/\s/g, '').replace(/\D/g, '');
+            value = value.replace(/(\d{4})(?=\d)/g, '$1 ');
+            this.value = value;
+        });
+
+        document.getElementById('cardExpiry').addEventListener('input', function() {
+            let value = this.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+                value = value.substring(0, 2) + '/' + value.substring(2, 4);
+            }
+            this.value = value;
+        });
+
+        document.getElementById('cardCvv').addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'Enter':
+                        e.preventDefault();
+                        addItemToCart();
+                        break;
+                    case 'Escape':
+                        e.preventDefault();
+                        clearInputs();
+                        break;
+                }
+            }
+        });
+
+        // Initialize system on load
+        document.addEventListener('DOMContentLoaded', initializeSystem);
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'971ea9e55423c8f4',t:'MTc1NTY1OTA3MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
