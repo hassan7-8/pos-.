@@ -39,6 +39,9 @@
         }
 
         @media print {
+            @page {
+                margin: 0;
+            }
             .no-print {
                 display: none !important;
             }
@@ -67,6 +70,7 @@
         <div class="flex items-center space-x-4">
             <span id="currentTime"></span>
             <span id="storeNumber">Store #001</span>
+            <button onclick="showHistoryModal()" class="text-blue-400 hover:text-blue-300">History</button>
             <button onclick="showSettings()" class="text-blue-400 hover:text-blue-300">Settings</button>
             <button onclick="logout()" class="text-red-400 hover:text-red-300">Logout</button>
         </div>
@@ -276,43 +280,52 @@
     </div>
 
     <div id="receiptModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-        <div class="receipt-paper w-96 p-6 rounded-lg receipt-print">
+        <div class="receipt-paper w-96 p-6 rounded-lg receipt-print font-mono">
             <div class="text-center text-black mb-4">
+                <h3 class="text-lg font-semibold">Sales Receipt</h3>
                 <h2 class="text-xl font-bold" id="receiptStoreName">STORE NAME</h2>
                 <p class="text-sm" id="receiptAddress">Store Address</p>
                 <p class="text-sm" id="receiptCity">City, State ZIP</p>
                 <p class="text-sm" id="receiptPhone">Phone Number</p>
             </div>
-            <div class="border-t border-b border-gray-400 py-4 text-black">
-                <div id="receiptItems"></div>
-                <div class="mt-4 pt-2 border-t border-gray-300">
-                    <div class="flex justify-between">
-                        <span>Subtotal:</span>
-                        <span id="receiptSubtotal">$0.00</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Tax:</span>
-                        <span id="receiptTax">$0.00</span>
-                    </div>
-                    <div class="flex justify-between font-bold text-lg">
-                        <span>Total:</span>
-                        <span id="receiptTotal">$0.00</span>
-                    </div>
-                    <div class="flex justify-between mt-2">
-                        <span>Payment Method:</span>
-                        <span id="receiptPaymentMethod">Cash</span>
-                    </div>
-                    <div id="receiptChange" class="flex justify-between hidden">
-                        <span>Change Given:</span>
-                        <span id="receiptChangeAmount">$0.00</span>
-                    </div>
+            <div class="text-black text-sm mb-2">
+                <p>Receipt #: <span id="receiptId"></span></p>
+                <p>Date: <span id="receiptTimestamp"></span></p>
+                <p>Cashier: <span id="receiptCashier">POS System</span></p>
+            </div>
+
+            <div class="border-t-2 border-b-2 border-dashed border-black py-2 my-2">
+                <table class="w-full text-black text-sm" id="receiptItemsTable">
+                    <thead>
+                        <tr>
+                            <th class="text-left font-normal w-1/2">Item</th>
+                            <th class="text-center font-normal">Qty</th>
+                            <th class="text-right font-normal">Price</th>
+                            <th class="text-right font-normal">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        </tbody>
+                </table>
+            </div>
+
+            <div class="text-black text-sm mt-2 space-y-1">
+                 <div class="flex justify-between"><span>Subtotal:</span><span id="receiptSubtotal">$0.00</span></div>
+                 <div class="flex justify-between"><span>Tax:</span><span id="receiptTax">$0.00</span></div>
+                 <div class="border-t border-black my-1"></div>
+                 <div class="flex justify-between font-bold text-base"><span>Total:</span><span id="receiptTotal">$0.00</span></div>
+                 <div class="border-t border-black my-1"></div>
+                 <div class="flex justify-between"><span>Paid Amount:</span><span id="receiptPaidAmount">$0.00</span></div>
+                 <div class="flex justify-between" id="receiptChangeContainer">
+                    <span>Change:</span>
+                    <span id="receiptChangeAmount">$0.00</span>
                 </div>
             </div>
-            <div class="text-center text-black mt-4 text-sm">
-                <p>Transaction ID: <span id="transactionId"></span></p>
-                <p id="receiptTimestamp"></p>
-                <p class="mt-2">Thank you for your business!</p>
+
+            <div class="text-center text-black mt-4">
+                <p>Thank You Come Again!</p>
             </div>
+            
             <div class="flex space-x-2 mt-6 no-print">
                 <button onclick="printReceipt()" class="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Print</button>
                 <button onclick="downloadReceiptImage()" class="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700">Download</button>
@@ -374,6 +387,30 @@
         </div>
     </div>
 
+    <div id="historyModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-4/5 max-w-4xl max-h-5/6 flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold">Transaction History</h3>
+                <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div class="bg-gray-700 p-6 rounded-lg flex-grow overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-600">
+                            <th class="text-left py-2">Receipt #</th>
+                            <th class="text-left py-2">Date</th>
+                            <th class="text-left py-2">Items</th>
+                            <th class="text-left py-2">Total</th>
+                            <th class="text-left py-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
         <div class="bg-gray-800 p-8 rounded-lg w-96 max-h-96 overflow-y-auto">
             <h3 class="text-xl font-semibold mb-6">Store Settings</h3>
@@ -381,6 +418,11 @@
                 <div>
                     <label class="block text-sm font-medium mb-2">Store Name</label>
                     <input type="text" id="settingsStoreName" 
+                           class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                 <div>
+                    <label class="block text-sm font-medium mb-2">Cashier Name</label>
+                    <input type="text" id="settingsCashierName" 
                            class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div>
@@ -426,13 +468,15 @@
         let currentCart = [];
         let transactionCounter = parseInt(localStorage.getItem('transactionCounter') || '1000');
         let dailyStats = JSON.parse(localStorage.getItem('dailyStats') || '{"transactions": 0, "revenue": 0}');
+        let receiptHistory = JSON.parse(localStorage.getItem('receiptHistory') || '[]');
         let currentPaymentMethod = '';
         let storeSettings = JSON.parse(localStorage.getItem('storeSettings') || `{
             "storeName": "My Store",
             "address": "123 Main Street",
             "city": "City, State 12345",
             "phone": "(555) 123-4567",
-            "taxRate": 8.5
+            "taxRate": 8.5,
+            "cashierName": "POS System"
         }`);
         let inventory = JSON.parse(localStorage.getItem('inventory') || '{}');
 
@@ -468,6 +512,7 @@
             localStorage.setItem('dailyStats', JSON.stringify(dailyStats));
             localStorage.setItem('storeSettings', JSON.stringify(storeSettings));
             localStorage.setItem('inventory', JSON.stringify(inventory));
+            localStorage.setItem('receiptHistory', JSON.stringify(receiptHistory));
             document.getElementById('syncStatus').textContent = 'Saved ' + new Date().toLocaleTimeString();
         }
 
@@ -725,6 +770,7 @@
             const total = parseFloat(document.getElementById('total').textContent.replace('$', ''));
             let isValid = false;
             let changeAmount = 0;
+            let paidAmount = total;
             
             switch(currentPaymentMethod) {
                 case 'cash':
@@ -733,6 +779,7 @@
                         showNotification('❌ Insufficient cash amount', 'error');
                         return;
                     }
+                    paidAmount = cashReceived;
                     changeAmount = cashReceived - total;
                     document.getElementById('changeAmount').textContent = `$${changeAmount.toFixed(2)}`;
                     isValid = true;
@@ -757,23 +804,42 @@
             }
             
             if (isValid) {
-                completeTransaction(changeAmount);
+                completeTransaction(paidAmount, changeAmount);
             }
         }
 
-        function completeTransaction(changeAmount = 0) {
+        function completeTransaction(paidAmount, changeAmount = 0) {
             const transactionId = `TXN${transactionCounter++}`;
             const timestamp = new Date();
             const total = parseFloat(document.getElementById('total').textContent.replace('$', ''));
+            const subtotal = parseFloat(document.getElementById('subtotal').textContent.replace('$', ''));
+            const tax = parseFloat(document.getElementById('tax').textContent.replace('$', ''));
+
+            // Create receipt object for history
+            const receipt = {
+                transactionId: transactionId,
+                timestamp: timestamp.toISOString(),
+                cart: JSON.parse(JSON.stringify(currentCart)), // Deep copy
+                subtotal: subtotal,
+                tax: tax,
+                total: total,
+                paymentMethod: currentPaymentMethod,
+                paidAmount: paidAmount,
+                changeAmount: changeAmount,
+                cashierName: storeSettings.cashierName
+            };
+            receiptHistory.unshift(receipt); // Add to beginning of history
             
             // Update daily stats
             dailyStats.transactions += 1;
             dailyStats.revenue += total;
             loadDailyStats();
             
-            // Show receipt
-            showReceipt(transactionId, timestamp, changeAmount);
-            
+            // Show receipt from live data
+            populateReceiptModal(receipt);
+            document.getElementById('receiptModal').classList.remove('hidden');
+            document.getElementById('receiptModal').classList.add('flex');
+
             // Clear cart and close payment modal
             currentCart = [];
             updateCartDisplay();
@@ -785,57 +851,49 @@
         }
 
         // Receipt Management
-        function showReceipt(transactionId, timestamp, changeAmount = 0) {
-            const modal = document.getElementById('receiptModal');
-            
+        function populateReceiptModal(receiptData) {
             // Update store info
             document.getElementById('receiptStoreName').textContent = storeSettings.storeName;
             document.getElementById('receiptAddress').textContent = storeSettings.address;
             document.getElementById('receiptCity').textContent = storeSettings.city;
             document.getElementById('receiptPhone').textContent = storeSettings.phone;
             
-            // Update items
-            const itemsContainer = document.getElementById('receiptItems');
-            itemsContainer.innerHTML = '';
-            currentCart.forEach(item => {
-                const receiptItem = document.createElement('div');
-                receiptItem.className = 'flex justify-between text-sm mb-1';
-                receiptItem.innerHTML = `
-                    <span>${item.name} (${item.quantity})</span>
-                    <span>$${(item.price * item.quantity).toFixed(2)}</span>
+            // Update header fields
+            document.getElementById('receiptId').textContent = receiptData.transactionId.replace('TXN', '');
+            document.getElementById('receiptTimestamp').textContent = new Date(receiptData.timestamp).toLocaleString();
+            document.getElementById('receiptCashier').textContent = receiptData.cashierName;
+
+            // Update items table
+            const itemsTbody = document.querySelector('#receiptItemsTable tbody');
+            itemsTbody.innerHTML = ''; // Clear previous items
+            receiptData.cart.forEach(item => {
+                const itemTotal = item.price * item.quantity;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="text-left py-1">${item.name}</td>
+                    <td class="text-center py-1">${item.quantity.toFixed(2)}</td>
+                    <td class="text-right py-1">$${item.price.toFixed(2)}</td>
+                    <td class="text-right py-1">$${itemTotal.toFixed(2)}</td>
                 `;
-                itemsContainer.appendChild(receiptItem);
+                itemsTbody.appendChild(row);
             });
             
-            // Update totals
-            document.getElementById('receiptSubtotal').textContent = document.getElementById('subtotal').textContent;
-            document.getElementById('receiptTax').textContent = document.getElementById('tax').textContent;
-            document.getElementById('receiptTotal').textContent = document.getElementById('total').textContent;
-            
-            // Update payment method
-            const paymentMethods = {
-                'cash': 'Cash',
-                'card': 'Credit/Debit Card',
-                'mobile': 'Mobile Payment',
-                'qr': 'QR Code'
-            };
-            document.getElementById('receiptPaymentMethod').textContent = paymentMethods[currentPaymentMethod];
-            
-            // Show change if cash payment
-            if (currentPaymentMethod === 'cash' && changeAmount > 0) {
-                document.getElementById('receiptChange').classList.remove('hidden');
-                document.getElementById('receiptChangeAmount').textContent = `$${changeAmount.toFixed(2)}`;
+            // Update totals and payment
+            document.getElementById('receiptSubtotal').textContent = `$${receiptData.subtotal.toFixed(2)}`;
+            document.getElementById('receiptTax').textContent = `$${receiptData.tax.toFixed(2)}`;
+            document.getElementById('receiptTotal').textContent = `$${receiptData.total.toFixed(2)}`;
+            document.getElementById('receiptPaidAmount').textContent = `$${receiptData.paidAmount.toFixed(2)}`;
+
+            // Manage change visibility
+            const changeContainer = document.getElementById('receiptChangeContainer');
+            if (receiptData.changeAmount > 0) {
+                changeContainer.style.display = 'flex';
+                document.getElementById('receiptChangeAmount').textContent = `$${receiptData.changeAmount.toFixed(2)}`;
             } else {
-                document.getElementById('receiptChange').classList.add('hidden');
+                changeContainer.style.display = 'none';
             }
-            
-            // Update transaction info
-            document.getElementById('transactionId').textContent = transactionId;
-            document.getElementById('receiptTimestamp').textContent = timestamp.toLocaleString();
-            
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
         }
+
 
         function printReceipt() {
             window.print();
@@ -844,7 +902,7 @@
 
         function downloadReceiptImage() {
             const receiptElement = document.querySelector('.receipt-print');
-            const transactionId = document.getElementById('transactionId').textContent;
+            const transactionId = document.getElementById('receiptId').textContent;
             const buttonContainer = receiptElement.querySelector('.no-print');
 
             // Temporarily hide the button container
@@ -880,6 +938,52 @@
             document.getElementById('receiptModal').classList.remove('flex');
         }
 
+        // History Management
+        function showHistoryModal() {
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = '';
+            
+            if (receiptHistory.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-400">No saved receipts</td></tr>';
+            } else {
+                receiptHistory.forEach(receipt => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-600';
+                    const totalItems = receipt.cart.reduce((sum, item) => sum + item.quantity, 0);
+                    row.innerHTML = `
+                        <td class="py-2">${receipt.transactionId.replace('TXN', '')}</td>
+                        <td class="py-2">${new Date(receipt.timestamp).toLocaleDateString()}</td>
+                        <td class="py-2">${totalItems}</td>
+                        <td class="py-2">$${receipt.total.toFixed(2)}</td>
+                        <td class="py-2">
+                            <button onclick="viewHistoricalReceipt('${receipt.transactionId}')" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-xs">
+                                View
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+            
+            document.getElementById('historyModal').classList.remove('hidden');
+            document.getElementById('historyModal').classList.add('flex');
+        }
+
+        function viewHistoricalReceipt(transactionId) {
+            const receiptData = receiptHistory.find(r => r.transactionId === transactionId);
+            if (receiptData) {
+                populateReceiptModal(receiptData);
+                closeHistoryModal();
+                document.getElementById('receiptModal').classList.remove('hidden');
+                document.getElementById('receiptModal').classList.add('flex');
+            }
+        }
+        
+        function closeHistoryModal() {
+            document.getElementById('historyModal').classList.add('hidden');
+            document.getElementById('historyModal').classList.remove('flex');
+        }
+
         // Hardware Controls
         function openCashDrawer() {
             const drawer = document.getElementById('cashDrawer');
@@ -896,6 +1000,7 @@
         // Settings Management
         function showSettings() {
             document.getElementById('settingsStoreName').value = storeSettings.storeName;
+            document.getElementById('settingsCashierName').value = storeSettings.cashierName;
             document.getElementById('settingsAddress').value = storeSettings.address;
             document.getElementById('settingsCity').value = storeSettings.city;
             document.getElementById('settingsPhone').value = storeSettings.phone;
@@ -907,6 +1012,7 @@
 
         function saveSettings() {
             storeSettings.storeName = document.getElementById('settingsStoreName').value;
+            storeSettings.cashierName = document.getElementById('settingsCashierName').value;
             storeSettings.address = document.getElementById('settingsAddress').value;
             storeSettings.city = document.getElementById('settingsCity').value;
             storeSettings.phone = document.getElementById('settingsPhone').value;
